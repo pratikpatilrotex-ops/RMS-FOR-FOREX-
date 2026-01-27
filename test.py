@@ -850,7 +850,11 @@ if uploaded is not None:
                 other_sum = symbol_summary["Volume"].sum() - top3["Volume"].sum()
                 pie_df = top3[["Symbol","Volume"]].copy()
                 if other_sum > 0:
-                    pie_df = pie_df.append({"Symbol":"Other","Volume":other_sum}, ignore_index=True)
+                    pie_df = pd.concat(
+                        [pie_df, pd.DataFrame([{"Symbol": "Other", "Volume": other_sum}])],
+                        ignore_index=True
+                )
+
                 fig_pie = px.pie(pie_df, names="Symbol", values="Volume", title="Top Symbols by Volume Share")
                 st.plotly_chart(fig_pie, use_container_width=True)
 
@@ -1138,4 +1142,5 @@ if uploaded is not None:
             data=buf,
             file_name="swap_with_rates.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+
         )
