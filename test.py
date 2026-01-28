@@ -1000,41 +1000,14 @@ if uploaded is not None:
         )[1]
 
         # ----------------------------------------------
-        # Load Swap Rates File
-        # ----------------------------------------------
-        st.markdown("### Upload Swap Rate File")
-        swap_rate_file = st.file_uploader(
-            "Upload Swap Rate CSV / Excel",
-            type=["csv", "xlsx"],
-            key="swap_rates"
-        )
-
-        if swap_rate_file is not None:
-            if swap_rate_file.name.endswith(".csv"):
-                swap_rates = pd.read_csv(swap_rate_file)
-            else:
-                swap_rates = pd.read_excel(swap_rate_file)
-
-            # Expect columns: Symbol, OrderType, SwapRate
-            swap_rates["SymbolPrefix"] = swap_rates["Symbol"].astype(str).str[:PREFIX_LEN]
-        else:
-            swap_rates = pd.DataFrame(
-                columns=["Symbol", "OrderType", "SwapRate", "SymbolPrefix"]
-            )
-
-        # ----------------------------------------------
         # Prepare Trades Data
-        # trades_df MUST exist before this block
-        # Required columns:
-        # Symbol, Type, Volume, Open Time, Close Time
         # ----------------------------------------------
         trades = trades_df.copy()
-
         trades["Open Time"] = trades["Open Time"].apply(safe_to_datetime)
         trades["Close Time"] = trades["Close Time"].apply(safe_to_datetime)
 
         # ----------------------------------------------
-        # Build Per-Trade Swap Table
+        # Build Per-Trade Swap Table (FIRST!)
         # ----------------------------------------------
         swap_rows = []
 
@@ -1044,7 +1017,6 @@ if uploaded is not None:
             )
 
             final_cnt = normal_cnt + (triple_cnt * 3)
-
             symbol = r.get("Symbol", "")
             symbol_prefix = str(symbol)[:PREFIX_LEN]
 
@@ -1055,51 +1027,73 @@ if uploaded is not None:
                 "Volume": r.get("Volume", 0),
                 "Open Time": r["Open Time"],
                 "Close Time": r["Close Time"],
-                "SwapDays_Normal": normal_cnt,
-                "SwapDays_Triple": triple_cnt,
                 "SwapDays_Final": final_cnt
             })
 
         swap_df = pd.DataFrame(swap_rows)
 
         # ----------------------------------------------
-        # Merge Swap Rates using PREFIX + BUY/SELL
+        # Merge Uploaded Swap Rates (if any)
         # ----------------------------------------------
-        swap_df = swap_df.merge(
-            swap_rates[["SymbolPrefix", "OrderType", "SwapRate"]],
-            on=["SymbolPrefix", "OrderType"],
-            how="left"
-        )
+        if "swap_rates" in locals() and not swap_rates.empty:
+            swap_df = swap_df.merge(
+                swap_rates[["SymbolPrefix", "OrderType", "SwapRate"]],
+                on=["SymbolPrefix", "OrderType"],
+                how="left"
+            )
+        else:
+            swap_df["SwapRate"] = 0.0
 
         # ----------------------------------------------
-        # Manual Swap Rate Override
+        # Manual Swap Rate Override (ALWAYS VISIBLE)
         # ----------------------------------------------
         st.markdown("### Manual Swap Rate Override (Optional)")
 
+        swap_df["SwapRate"] = pd.to_numeric(swap_df["SwapRate"], errors="coerce").fillna(0)
+
         manual_rates = st.data_editor(
             swap_df[["SymbolPrefix", "OrderType", "SwapRate"]]
-            .drop_duplicates()
-            .reset_index(drop=True),
+            .drop_duplicates(),
             use_container_width=True,
-            num_rows="dynamic"
+            num_rows="dynamic",
+            key="manual_swap_editor"
         )
 
-        # Replace SwapRate with manual values
-        swap_df = swap_df.drop(columns=["SwapRate"], errors="ignore").merge(
+        swap_df = swap_df.drop(columns=["SwapRate"]).merge(
             manual_rates,
             on=["SymbolPrefix", "OrderType"],
             how="left"
         )
 
+
         # ----------------------------------------------
-        # Swap Money Calculation
+        # Swap Money Calculation (MT4 / MT5 Accurate)
         # ----------------------------------------------
+        def get_contract_and_point(symbol):
+            symbol = str(symbol).upper()
+            if "XAG" in symbol:
+                return 5000, 0.001
+            elif "XAU" in symbol:
+                return 100, 0.01
+            else:
+                return 100000, 0.00001
+
+
         swap_df["SwapRate"] = pd.to_numeric(swap_df["SwapRate"], errors="coerce").fillna(0)
+        swap_df["Volume"] = pd.to_numeric(swap_df["Volume"], errors="coerce").fillna(0)
+        swap_df["SwapDays_Final"] = pd.to_numeric(swap_df["SwapDays_Final"], errors="coerce").fillna(0)
+
+        swap_df[["ContractSize", "Point"]] = swap_df.apply(
+            lambda r: pd.Series(get_contract_and_point(r["Symbol"])),
+            axis=1
+        )
 
         swap_df["SwapMoney"] = (
-                swap_df["SwapRate"] *
-                swap_df["Volume"] *
-                swap_df["SwapDays_Final"]
+                swap_df["SwapRate"]
+                * swap_df["ContractSize"]
+                * swap_df["Point"]
+                * swap_df["Volume"]
+                * swap_df["SwapDays_Final"]
         )
 
         # ----------------------------------------------
@@ -1142,5 +1136,4 @@ if uploaded is not None:
             data=buf,
             file_name="swap_with_rates.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-
         )
