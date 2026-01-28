@@ -1105,6 +1105,9 @@ if uploaded is not None:
         # ----------------------------------------------
         # BUY vs SELL Carry-Forward Summary
         # ----------------------------------------------
+        # ----------------------------------------------
+        # BUY vs SELL Carry-Forward Summary + TOTAL ROW
+        # ----------------------------------------------
         cf_trades = swap_df[swap_df["SwapDays_Final"] > 0]
 
         buy_sell_summary = cf_trades.groupby(
@@ -1116,13 +1119,31 @@ if uploaded is not None:
             TotalSwapMoney=("SwapMoney", "sum")
         ).reset_index()
 
+        # ---- ADD TOTAL ROW ----
+        total_row = pd.DataFrame([{
+            "SymbolPrefix": "TOTAL",
+            "OrderType": "",
+            "CarryForwardTrades": buy_sell_summary["CarryForwardTrades"].sum(),
+            "CarryForwardVolume": buy_sell_summary["CarryForwardVolume"].sum(),
+            "SwapDays": buy_sell_summary["SwapDays"].sum(),
+            "TotalSwapMoney": buy_sell_summary["TotalSwapMoney"].sum()
+        }])
+
+        buy_sell_summary = pd.concat(
+            [buy_sell_summary, total_row],
+            ignore_index=True
+        )
+
         st.markdown("### BUY vs SELL Carry-Forward Swap Summary")
         st.dataframe(buy_sell_summary, use_container_width=True)
 
         # ----------------------------------------------
-        # Download Excel
+        # Download Excel (SAFE)
         # ----------------------------------------------
+        from io import BytesIO
+
         buf = BytesIO()
+
         with pd.ExcelWriter(buf, engine="openpyxl") as writer:
             swap_df.to_excel(writer, index=False, sheet_name="Swap Per Trade")
             buy_sell_summary.to_excel(
