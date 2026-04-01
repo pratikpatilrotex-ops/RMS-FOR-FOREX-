@@ -970,11 +970,11 @@
 #         st.subheader("🔄 Swap Days & Swap Money Calculator")
 
 #         st.markdown("""
-#         ✔ Swap charged at **23:59**  
-#         ✔ Saturday & Sunday skipped  
-#         ✔ Triple day applied  
-#         ✔ Symbol suffix handled automatically  
-#         ✔ BUY / SELL swap separated  
+#         ✔ Swap charged at **23:59**
+#         ✔ Saturday & Sunday skipped
+#         ✔ Triple day applied
+#         ✔ Symbol suffix handled automatically
+#         ✔ BUY / SELL swap separated
 #         """)
 
 #         # ----------------------------------------------
