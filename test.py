@@ -83,7 +83,7 @@ CHART_LAYOUT = dict(
 
 # ── HELPERS ──────────────────────────────────────────────────
 def safe_dt(s):
-    return pd.to_datetime(s, errors="coerce", infer_datetime_format=True)
+    return pd.to_datetime(s, errors="coerce")
 
 
 def fmt_usd(v):
